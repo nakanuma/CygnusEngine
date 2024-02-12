@@ -1,9 +1,14 @@
-#include <Windows.h>
+#include "MyWindow.h"
 
-// WindowsƒAƒvƒŠ‚Å‚ÌƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒg(mainŠÖ”)
+// Windowsã‚¢ãƒ—ãƒªã§ã®ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆ(mainé–¢æ•°)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-	// o—ÍƒEƒBƒ“ƒhƒE‚Ö‚Ì•¶šo—Í
-	OutputDebugStringA("Hello,DirectX!\n");
+
+	Cygnus::Window::Create(L"test", 1280, 720);
+
+	while (!Cygnus::Window::ProcessMessage()) {
+		// ã‚²ãƒ¼ãƒ ãƒ«ãƒ¼ãƒ—
+
+	}
 
 	return 0;
 }
