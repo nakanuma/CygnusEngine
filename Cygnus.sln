@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33530.505
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Cygnus", "Cygnus.vcxproj", "{8CA823EE-7EBB-4DDB-92D4-F9467BE39028}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ソリューション項目", "ソリューション項目", "{E982068E-AC07-4CD7-A62E-D3ACF4595956}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8CA823EE-7EBB-4DDB-92D4-F9467BE39028}.Debug|x64.ActiveCfg = Release|x64
+		{8CA823EE-7EBB-4DDB-92D4-F9467BE39028}.Debug|x64.Build.0 = Release|x64
+		{8CA823EE-7EBB-4DDB-92D4-F9467BE39028}.Release|x64.ActiveCfg = Release|x64
+		{8CA823EE-7EBB-4DDB-92D4-F9467BE39028}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FD8EC112-BAD5-45C8-8B17-2709FAA3028F}
+	EndGlobalSection
+EndGlobal
