@@ -25,6 +25,12 @@
     <Filter Include="Engine\Windows">
       <UniqueIdentifier>{6f14feab-a70b-43fb-b4a0-80423d2c9858}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Debug">
+      <UniqueIdentifier>{a658288d-afb7-42de-bda0-16c1ac4d6f68}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Util">
+      <UniqueIdentifier>{ba8b69bc-a1a5-4345-a620-baab6c6671b9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -33,10 +39,19 @@
     <ClCompile Include="MyWindow.cpp">
       <Filter>Engine\Windows</Filter>
     </ClCompile>
+    <ClCompile Include="Logger.cpp">
+      <Filter>Engine\Debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MyWindow.h">
       <Filter>Engine\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Logger.h">
+      <Filter>Engine\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="StringUtil.h">
+      <Filter>Engine\Util</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

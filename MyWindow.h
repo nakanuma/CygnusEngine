@@ -12,6 +12,7 @@ namespace Cygnus {
 
 		static uint32_t GetWidth();
 		static uint32_t GetHeight();
+		static HWND GetHandle();
 
 	private:
 		inline static uint32_t winWidth;

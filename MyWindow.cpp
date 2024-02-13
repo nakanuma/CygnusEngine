@@ -88,3 +88,8 @@ uint32_t Cygnus::Window::GetHeight()
 {
 	return winHeight;
 }
+
+HWND Cygnus::Window::GetHandle()
+{
+	return hwnd;
+}
