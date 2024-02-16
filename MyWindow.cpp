@@ -32,7 +32,7 @@ void Cygnus::Window::Create(LPCWSTR windowTitle, uint32_t width, uint32_t height
 	wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
 
-	// ウィンドウクラを登録する
+	// ウィンドウクラスを登録する
 	RegisterClass(&wc);
 
 	// クライアント領域のサイズ
