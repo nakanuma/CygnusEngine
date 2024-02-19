@@ -31,6 +31,9 @@
     <Filter Include="Engine\Util">
       <UniqueIdentifier>{ba8b69bc-a1a5-4345-a620-baab6c6671b9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{388599bb-7632-49f3-a35b-f33774d1edd6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -53,5 +56,13 @@
     <ClInclude Include="StringUtil.h">
       <Filter>Engine\Util</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Object3d.VS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Object3d.PS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
