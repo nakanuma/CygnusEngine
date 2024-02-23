@@ -1,6 +1,8 @@
 #include "MyWindow.h"
 #include "Logger.h"
 #include "StringUtil.h"
+#include "Transform.h"
+#include "Camera.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <cassert>
@@ -294,10 +296,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	// RootParameter作成
-	D3D12_ROOT_PARAMETER rootParameters[1] = {};
+	D3D12_ROOT_PARAMETER rootParameters[2] = {};
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0; // レジスタ番号0とバインド
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // VertexShaderで使う
+	rootParameters[1].Descriptor.ShaderRegister = 0; // レジスタ番号0とバインド
 	descriptionRootSignature.pParameters = rootParameters; // ルートパラメータ配列へのポインタ
 	descriptionRootSignature.NumParameters = _countof(rootParameters); // 配列の長さ
 
@@ -404,6 +409,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 今回は赤を書き込んでみる
 	*materialData = DirectX::XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
 
+
+	// WVP用のリソースを作る
+	Microsoft::WRL::ComPtr <ID3D12Resource> wvpResource = CreateBufferResource(device.Get(), sizeof(DirectX::XMMATRIX));
+	// データを書き込む
+	DirectX::XMMATRIX* wvpData = nullptr;
+	// 書き込むためのアドレスを取得
+	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
+	// 単位行列を書き込んでおく
+	*wvpData = DirectX::XMMatrixIdentity();
+
 	// ビューポート
 	D3D12_VIEWPORT viewport{};
 	// クライアント領域のサイズを一緒にして画面全体に表示
@@ -421,6 +436,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.right = Cygnus::Window::GetWidth();
 	scissorRect.top = 0;
 	scissorRect.bottom = Cygnus::Window::GetHeight();
+
+	// Transform変数を作る
+	Cygnus::Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
+
+	// カメラのインスタンスを生成
+	Cygnus::Camera camera({ 0.0f,0.0f,-0.5f });
+
 
 	while (!Cygnus::Window::ProcessMessage()) {
 
@@ -460,7 +482,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///	更新処理
 		/// 
 
-
+		transform.rotate.x += 0.03f;
+		DirectX::XMMATRIX worldMatrix = transform.MakeAffineMatrix();
+		DirectX::XMMATRIX viewMatrix = camera.MakeViewMatrix();
+		DirectX::XMMATRIX projectionMatrix = camera.MakePerspectiveFovMatrix();
+		DirectX::XMMATRIX worldViewProjectionMatrix = worldMatrix * viewMatrix * projectionMatrix;
+		*wvpData = worldViewProjectionMatrix;
 
 		///
 		///	描画処理
@@ -476,6 +503,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		// マテリアルCBufferの場所を設定
 		commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
+		// wvp用のCBufferの場所を設定
+		commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 		// 描画。3頂点で1つのインスタンス
 		commandList->DrawInstanced(3, 1, 0, 0);
 
