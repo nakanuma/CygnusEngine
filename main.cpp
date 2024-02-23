@@ -3,12 +3,15 @@
 #include "StringUtil.h"
 #include "Transform.h"
 #include "Camera.h"
+#include "ImguiWrapper.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <cassert>
 #include <wrl.h>
 #include <dxcapi.h>
 #include <DirectXMath.h>
+#include <time.h>
+#include <mmsystem.h>
 
 IDxcBlob* CompileShader(
 	// CompilerするShaderファイルへのパス
@@ -98,6 +101,20 @@ Microsoft::WRL::ComPtr < ID3D12Resource> CreateBufferResource(ID3D12Device* devi
 	assert(SUCCEEDED(hr));
 
 	return std::move(vertexResource); // デストラクタを呼ばないように返す
+}
+
+Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> CreateDescriptorHeap(
+	ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible) 
+{
+	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> descriptorHeap = nullptr;
+	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc{};
+	descriptorHeapDesc.Type = heapType;
+	descriptorHeapDesc.NumDescriptors = numDescriptors;
+	descriptorHeapDesc.Flags = shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	HRESULT hr = device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&descriptorHeap));
+	// ディスクリプタヒープが作れなかったので悲しいが起動できない
+	assert(SUCCEEDED(hr));
+	return std::move(descriptorHeap);
 }
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -233,13 +250,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	// ディスクリプタヒープの生成
-	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> rtvDescriptorHeap = nullptr;
-	D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc{};
-	rtvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // レンダーターゲットビュー用
-	rtvDescriptorHeapDesc.NumDescriptors = 2; // ダブルバッファ用に2つ(多くても構わない)
-	hr = device->CreateDescriptorHeap(&rtvDescriptorHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap));
-	// ディスクリプタヒープが作れなかったので悲しいが起動できない
-	assert(SUCCEEDED(hr));
+	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> rtvDescriptorHeap = CreateDescriptorHeap(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2 ,false);
 
 	// SwapChainからResourceを引っ張ってくる
 	Microsoft::WRL::ComPtr <ID3D12Resource> swapChainResources[2] = { nullptr };
@@ -276,6 +287,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	HANDLE fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	assert(fenceEvent != nullptr);
 
+	// SRV用のDescriptorHeapを作成
+	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> srvDescriptorHeap = CreateDescriptorHeap(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128, true);
 
 	// dxcCompilerを初期化
 	IDxcUtils* dxcUtils = nullptr;
@@ -437,12 +450,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.top = 0;
 	scissorRect.bottom = Cygnus::Window::GetHeight();
 
+	// ImGuiの初期化
+	Cygnus::ImguiWrapper::Initialize(device.Get(), swapChainDesc.BufferCount, rtvDesc.Format, srvDescriptorHeap.Get());
+
 	// Transform変数を作る
 	Cygnus::Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 
 	// カメラのインスタンスを生成
-	Cygnus::Camera camera({ 0.0f,0.0f,-0.5f });
-
+	Cygnus::Camera camera({ 0.0f,0.0f,-5.0f },{0.0f,0.0f,0.0f},0.45f);
 
 	while (!Cygnus::Window::ProcessMessage()) {
 
@@ -474,6 +489,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		float clearColor[] = { 0.1f,0.25f,0.5f,1.0f }; // 青っぽい色。RGBAの順
 		commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
 
+		// 描画用のDescriptorHeapの設定
+		ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap.Get()};
+		commandList->SetDescriptorHeaps(1, descriptorHeaps);
+
+		// ImGuiにここからフレームが始まる旨を告げる
+		Cygnus::ImguiWrapper::NewFrame();
+
+		static bool isRotate = false;
+
 		///
 		/// ゲームループ
 		/// 
@@ -482,7 +506,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///	更新処理
 		/// 
 
-		transform.rotate.x += 0.03f;
+		// ImGuiのデモ用のUIを表示
+		/*ImGui::ShowDemoWindow();*/
+
+		if (ImGui::Begin("Triangle")) {
+			// 色を決める
+			ImGui::ColorEdit4("TriangleColor", &materialData->x);
+			// ボタンが押されたら回転
+			if (ImGui::Button("rotate")) {
+				isRotate = !isRotate;
+			}
+			ImGui::Checkbox("rotateCheck",&isRotate);
+		}
+		ImGui::End();
+
+		if (isRotate) {
+			transform.rotate.y += 0.03f;
+		}
 		DirectX::XMMATRIX worldMatrix = transform.MakeAffineMatrix();
 		DirectX::XMMATRIX viewMatrix = camera.MakeViewMatrix();
 		DirectX::XMMATRIX projectionMatrix = camera.MakePerspectiveFovMatrix();
@@ -512,6 +552,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ゲームループここまで
 		/// 
 
+		// ImGuiの内部コマンドを生成する
+		Cygnus::ImguiWrapper::Render(commandList.Get());
+
 		// 画面に描く処理はすべて終わり、画面に映すので、状態を遷移
 		// 今回はRenderTargetからPresentにする
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -539,6 +582,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{
 			// 指定したSignalにたどりついていないので、たどり着くまで待つようにイベントを設定する
 			fence->SetEventOnCompletion(fenceValue, fenceEvent);
+			std::this_thread::sleep_for(std::chrono::microseconds(16000)); // 60fpsに制限
 			// イベント待つ
 			WaitForSingleObject(fenceEvent, INFINITE);
 		}
@@ -550,6 +594,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		assert(SUCCEEDED(hr));
 
 	}
+
+	// ImGuiの終了処理
+	Cygnus::ImguiWrapper::Finalize();
 
 	return 0;
 }

@@ -5,6 +5,7 @@ Cygnus::Camera::Camera(DirectX::XMFLOAT3 argTranslate, DirectX::XMFLOAT3 argRota
 {
 	transform.translate = argTranslate;
 	transform.rotate = argRotate;
+	transform.scale = { 1.0f,1.0f,1.0f };
 	fov = argFov;
 }
 
