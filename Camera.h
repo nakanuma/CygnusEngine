@@ -1,12 +1,11 @@
 #pragma once
-#include "Transform.h"
-#include <DirectXMath.h>
+#include "CygnusMath.h"
 
 namespace Cygnus {
 	class Camera
 	{
 	public:
-		Camera(DirectX::XMFLOAT3 translate, DirectX::XMFLOAT3 rotate = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), float fov = 3.1415926f / 2.0f); // 回転角と視野角にデフォルト値を設定
+		Camera(Cygnus::Float3 translate, Cygnus::Float3 rotate = Cygnus::Float3(0.0f, 0.0f, 0.0f), float fov = PIf / 2.0f); // 回転角と視野角にデフォルト値を設定
 
 		Transform transform;
 
@@ -14,8 +13,8 @@ namespace Cygnus {
 
 		float nearZ = 0.1f, farZ = 1000.0f; // クリップの設定
 
-		DirectX::XMMATRIX MakeViewMatrix();
-		DirectX::XMMATRIX MakePerspectiveFovMatrix();
+		Cygnus::Matrix MakeViewMatrix();
+		Cygnus::Matrix MakePerspectiveFovMatrix();
 	};
 }
 

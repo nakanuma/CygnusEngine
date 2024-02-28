@@ -96,6 +96,9 @@
     <ClCompile Include="StringUtil.cpp">
       <Filter>Engine\Util</Filter>
     </ClCompile>
+    <ClCompile Include="Matrix.cpp">
+      <Filter>Engine\Math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MyWindow.h">
@@ -142,6 +145,21 @@
     </ClInclude>
     <ClInclude Include="TextureManager.h">
       <Filter>Engine\Texture</Filter>
+    </ClInclude>
+    <ClInclude Include="Float2.h">
+      <Filter>Engine\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Float3.h">
+      <Filter>Engine\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Float4.h">
+      <Filter>Engine\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="CygnusMath.h">
+      <Filter>Engine\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Matrix.h">
+      <Filter>Engine\Math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

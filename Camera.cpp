@@ -1,7 +1,7 @@
 #include "Camera.h"
 #include "MyWindow.h"
 
-Cygnus::Camera::Camera(DirectX::XMFLOAT3 argTranslate, DirectX::XMFLOAT3 argRotate, float argFov)
+Cygnus::Camera::Camera(Cygnus::Float3 argTranslate, Cygnus::Float3 argRotate, float argFov)
 {
 	transform.translate = argTranslate;
 	transform.rotate = argRotate;
@@ -9,14 +9,14 @@ Cygnus::Camera::Camera(DirectX::XMFLOAT3 argTranslate, DirectX::XMFLOAT3 argRota
 	fov = argFov;
 }
 
-DirectX::XMMATRIX Cygnus::Camera::MakeViewMatrix()
+Cygnus::Matrix Cygnus::Camera::MakeViewMatrix()
 {
-	DirectX::XMMATRIX affine = transform.MakeAffineMatrix();
+	Cygnus::Matrix affine = transform.MakeAffineMatrix();
 
-	return DirectX::XMMatrixInverse(nullptr, affine);
+	return Cygnus::Matrix::Inverse(affine);
 }
 
-DirectX::XMMATRIX Cygnus::Camera::MakePerspectiveFovMatrix()
+Cygnus::Matrix Cygnus::Camera::MakePerspectiveFovMatrix()
 {
-	return DirectX::XMMatrixPerspectiveFovLH(fov, static_cast<float>(Cygnus::Window::GetWidth()) / static_cast<float>(Cygnus::Window::GetHeight()), nearZ, farZ);
+	return Cygnus::Matrix::PerspectiveFovLH(fov, static_cast<float>(Cygnus::Window::GetWidth()) / static_cast<float>(Cygnus::Window::GetHeight()), nearZ, farZ);
 }

@@ -5,18 +5,18 @@
 #include "Transform.h"
 #include "Camera.h"
 #include "ImguiWrapper.h"
+#include "CygnusMath.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <cassert>
 #include <wrl.h>
 #include <dxcapi.h>
-#include <DirectXMath.h>
 #include <time.h>
 #include <mmsystem.h>
 
 struct VertexData {
-	DirectX::XMFLOAT4 position;
-	DirectX::XMFLOAT2 texcoord;
+	Cygnus::Float4 position;
+	Cygnus::Float2 texcoord;
 };
 
 IDxcBlob* CompileShader(
@@ -389,7 +389,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// RasterizerStateの設定
 	D3D12_RASTERIZER_DESC rasterizerDesc{};
 	// 裏面(時計回り)を表示しない
-	rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+	/*rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;*/
+	rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 	// 三角形の中を塗りつぶす
 	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 
@@ -453,23 +454,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	vertexData[2].texcoord = { 1.0f,1.0f };
 
 	// マテリアル用のリソースを作る
-	Microsoft::WRL::ComPtr <ID3D12Resource> materialResource = CreateBufferResource(device.Get(), sizeof(DirectX::XMFLOAT4));
+	Microsoft::WRL::ComPtr <ID3D12Resource> materialResource = CreateBufferResource(device.Get(), sizeof(Cygnus::Float4));
 	// マテリアルにデータを書き込む
-	DirectX::XMFLOAT4* materialData = nullptr;
+	Cygnus::Float4* materialData = nullptr;
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
 	// 輝度を白に設定
-	*materialData = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	*materialData = Cygnus::Float4(1.0f, 1.0f, 1.0f, 1.0f);
 
 
 	// WVP用のリソースを作る
-	Microsoft::WRL::ComPtr <ID3D12Resource> wvpResource = CreateBufferResource(device.Get(), sizeof(DirectX::XMMATRIX));
+	Microsoft::WRL::ComPtr <ID3D12Resource> wvpResource = CreateBufferResource(device.Get(), sizeof(Cygnus::Matrix));
 	// データを書き込む
-	DirectX::XMMATRIX* wvpData = nullptr;
+	Cygnus::Matrix* wvpData = nullptr;
 	// 書き込むためのアドレスを取得
 	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
 	// 単位行列を書き込んでおく
-	*wvpData = DirectX::XMMatrixIdentity();
+	*wvpData = Cygnus::Matrix::Identity();
 
 	// ビューポート
 	D3D12_VIEWPORT viewport{};
@@ -564,10 +565,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		if (isRotate) {
 			transform.rotate.y += 0.03f;
 		}
-		DirectX::XMMATRIX worldMatrix = transform.MakeAffineMatrix();
-		DirectX::XMMATRIX viewMatrix = camera.MakeViewMatrix();
-		DirectX::XMMATRIX projectionMatrix = camera.MakePerspectiveFovMatrix();
-		DirectX::XMMATRIX worldViewProjectionMatrix = worldMatrix * viewMatrix * projectionMatrix;
+		Cygnus::Matrix worldMatrix = transform.MakeAffineMatrix();
+		Cygnus::Matrix viewMatrix = camera.MakeViewMatrix();
+		Cygnus::Matrix projectionMatrix = camera.MakePerspectiveFovMatrix();
+		Cygnus::Matrix worldViewProjectionMatrix = worldMatrix * viewMatrix * projectionMatrix;
 		*wvpData = worldViewProjectionMatrix;
 
 		///

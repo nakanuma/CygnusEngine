@@ -1,15 +1,15 @@
 #pragma once
-#include <DirectXMath.h>
+#include "CygnusMath.h"
 
 namespace Cygnus {
 	class Transform
 	{
 	public:
-		DirectX::XMFLOAT3 scale;
-		DirectX::XMFLOAT3 rotate;
-		DirectX::XMFLOAT3 translate;
+		Cygnus::Float3 scale;
+		Cygnus::Float3 rotate;
+		Cygnus::Float3 translate;
 
-		DirectX::XMMATRIX MakeAffineMatrix();
+		Cygnus::Matrix MakeAffineMatrix();
 	};
 }
 
