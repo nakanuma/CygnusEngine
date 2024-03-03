@@ -46,6 +46,8 @@ namespace Cygnus {
 
 		static Matrix PerspectiveFovLH(float fov, float aspectRatio, float nearZ, float farZ);
 
+		static Matrix Orthographic(float width, float height, float nearClip, float farClip);
+
 		static Matrix Scaling(Float3 scale);
 
 		static Matrix Translation(Float3 translation);

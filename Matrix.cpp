@@ -249,6 +249,16 @@ Matrix Matrix::PerspectiveFovLH(float fov, float aspectRatio, float nearZ, float
 	return result;
 }
 
+Matrix Cygnus::Matrix::Orthographic(float width, float height, float nearClip, float farClip)
+{
+	return Matrix(
+		2.0f / width, 0.0f, 0.0f, 0.0f,
+		0.0f, 2.0f / -height, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f / (farClip - nearClip), 0.0f,
+		-1, 1, nearClip / (nearClip - farClip), 1.0f // 左上を原点にする
+	);
+}
+
 Matrix Matrix::Scaling(Float3 scale)
 {
 	Matrix ret = Matrix();
