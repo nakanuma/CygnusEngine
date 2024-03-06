@@ -1,4 +1,6 @@
 #include "TextureManager.h"
+#include "Logger.h"
+#include <format>
 
 DirectX::ScratchImage Cygnus::TextureManager::LoadTexture(const std::string& filePath)
 {
@@ -69,8 +71,17 @@ void Cygnus::TextureManager::UploadTextureData(ID3D12Resource* texture, const Di
     }
 }
 
-int Cygnus::TextureManager::Load(const std::string& filePath, ID3D12Device* device, ID3D12DescriptorHeap* srvHeap)
+void Cygnus::TextureManager::Initialize(ID3D12Device* device)
 {
+    GetInstance().srvHeap.Create(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128, true);
+}
+
+int Cygnus::TextureManager::Load(const std::string& filePath, ID3D12Device* device)
+{
+    if (GetInstance().index >= 128) {
+        Cygnus::Log(std::format("Maximum texture loading has been reached. Texture:{}\n", filePath));
+        assert(0);
+    }
     DirectX::ScratchImage mipImages = GetInstance().LoadTexture(filePath);
     const DirectX::TexMetadata& metadata = mipImages.GetMetadata();
     ID3D12Resource* textureResource = Cygnus::TextureManager::GetInstance().CreateTextureResource(device, metadata);
@@ -83,16 +94,13 @@ int Cygnus::TextureManager::Load(const std::string& filePath, ID3D12Device* devi
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
     srvDesc.Texture2D.MipLevels = UINT(metadata.mipLevels);
 
-    // SRVを作成するDescriptorHeapの場所を決める
-    GetInstance().textureSrvHandleCPU = srvHeap->GetCPUDescriptorHandleForHeapStart();
-    GetInstance().textureSrvHandleGPU = srvHeap->GetGPUDescriptorHandleForHeapStart();
-    // 先頭はImGuiが使っているのでその次を使う
-    GetInstance().textureSrvHandleCPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    GetInstance().textureSrvHandleGPU.ptr += device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     // SRVの生成
-    device->CreateShaderResourceView(textureResource, &srvDesc, GetInstance().textureSrvHandleCPU);
+    device->CreateShaderResourceView(textureResource, &srvDesc, GetInstance().srvHeap.GetCPUHandle(GetInstance().index));
 
-    return 0;
+    // SRVを作成するDescriptorHeapの場所を決める
+    GetInstance().index++;
+
+    return GetInstance().index - 1; // インクリメントした分を引く
 }
 
 Cygnus::TextureManager& Cygnus::TextureManager::GetInstance()
@@ -102,7 +110,7 @@ Cygnus::TextureManager& Cygnus::TextureManager::GetInstance()
     return ins;
 }
 
-void Cygnus::TextureManager::SetDescriptorTable(UINT rootParamIndex, ID3D12GraphicsCommandList* commandList)
+void Cygnus::TextureManager::SetDescriptorTable(UINT rootParamIndex, ID3D12GraphicsCommandList* commandList, uint32_t textureHandle)
 {
-    commandList->SetGraphicsRootDescriptorTable(rootParamIndex, GetInstance().textureSrvHandleGPU);
+    commandList->SetGraphicsRootDescriptorTable(rootParamIndex, GetInstance().srvHeap.GetGPUHandle(textureHandle));
 }

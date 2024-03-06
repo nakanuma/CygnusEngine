@@ -2,16 +2,21 @@
 #include <d3d12.h>
 #include "externals/DirectXTex/DirectXTex.h"
 #include "StringUtil.h"
+#include "DescriptorHeap.h"
 
 namespace Cygnus {
 	class TextureManager final
 	{
 	public:
-		static int Load(const std::string& filePath, ID3D12Device* device, ID3D12DescriptorHeap* srvHeap);
+		Cygnus::DescriptorHeap srvHeap;
+
+		static void Initialize(ID3D12Device* device);
+
+		static int Load(const std::string& filePath, ID3D12Device* device);
 
 		static TextureManager& GetInstance();
 
-		static void SetDescriptorTable(UINT rootParamIndex, ID3D12GraphicsCommandList* commandList);
+		static void SetDescriptorTable(UINT rootParamIndex, ID3D12GraphicsCommandList* commandList, uint32_t textureHandle);
 
 	private:
 		DirectX::ScratchImage LoadTexture(const std::string& filePath);
@@ -20,8 +25,7 @@ namespace Cygnus {
 
 		void UploadTextureData(ID3D12Resource* texture, const DirectX::ScratchImage& mipImages);
 
-		D3D12_CPU_DESCRIPTOR_HANDLE textureSrvHandleCPU;
-		D3D12_GPU_DESCRIPTOR_HANDLE textureSrvHandleGPU;
+		uint32_t index = 1;
 	};
 }
 

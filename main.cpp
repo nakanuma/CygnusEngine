@@ -6,6 +6,7 @@
 #include "Camera.h"
 #include "ImguiWrapper.h"
 #include "CygnusMath.h"
+#include "DescriptorHeap.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <cassert>
@@ -107,20 +108,6 @@ Microsoft::WRL::ComPtr < ID3D12Resource> CreateBufferResource(ID3D12Device* devi
 	assert(SUCCEEDED(hr));
 
 	return std::move(vertexResource); // デストラクタを呼ばないように返す
-}
-
-Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> CreateDescriptorHeap(
-	ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT numDescriptors, bool shaderVisible) 
-{
-	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> descriptorHeap = nullptr;
-	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc{};
-	descriptorHeapDesc.Type = heapType;
-	descriptorHeapDesc.NumDescriptors = numDescriptors;
-	descriptorHeapDesc.Flags = shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	HRESULT hr = device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&descriptorHeap));
-	// ディスクリプタヒープが作れなかったので悲しいが起動できない
-	assert(SUCCEEDED(hr));
-	return std::move(descriptorHeap);
 }
 
 Microsoft::WRL::ComPtr < ID3D12Resource> CreateDepthStencilTextureResource(ID3D12Device* device, int32_t width, int32_t height) {
@@ -292,7 +279,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 	// ディスクリプタヒープの生成
-	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> rtvDescriptorHeap = CreateDescriptorHeap(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2 ,false);
+	Cygnus::DescriptorHeap rtvDescriptorHeap;
+	rtvDescriptorHeap.Create(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, false);
 
 	// SwapChainからResourceを引っ張ってくる
 	Microsoft::WRL::ComPtr <ID3D12Resource> swapChainResources[2] = { nullptr };
@@ -308,16 +296,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB; // 出力結果をSRGBに変換して書き込む
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D; // 2dテクスチャとして書き込む
 	// ディスクリプタの先頭を取得する
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvStartHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	// RTVを2つ作るのディスクリプタを2つ用意
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandles[2];
-	// まず1つ目を作る。1つ目は最初のところに作る。作る場所をこちらで指定してあげる必要がある
-	rtvHandles[0] = rtvStartHandle;
-	device->CreateRenderTargetView(swapChainResources[0].Get(), &rtvDesc, rtvHandles[0]);
-	// 2つ目のディスクリプタハンドルを得る(自力で)
-	rtvHandles[1].ptr = rtvHandles[0].ptr + device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	device->CreateRenderTargetView(swapChainResources[0].Get(), &rtvDesc, rtvDescriptorHeap.GetCPUHandle(0));
 	// 2つ目を作る
-	device->CreateRenderTargetView(swapChainResources[1].Get(), &rtvDesc, rtvHandles[1]);
+	device->CreateRenderTargetView(swapChainResources[1].Get(), &rtvDesc, rtvDescriptorHeap.GetCPUHandle(1));
 
 	// 初期値0でFenceを作る
 	Microsoft::WRL::ComPtr <ID3D12Fence> fence = nullptr;
@@ -328,9 +309,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// FenceのSignalを待つためのイベントを作成する
 	HANDLE fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	assert(fenceEvent != nullptr);
-
-	// SRV用のDescriptorHeapを作成
-	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> srvDescriptorHeap = CreateDescriptorHeap(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128, true);
 
 	// dxcCompilerを初期化
 	IDxcUtils* dxcUtils = nullptr;
@@ -441,14 +419,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Microsoft::WRL::ComPtr <ID3D12Resource> depthStencilResource = CreateDepthStencilTextureResource(device.Get(), Cygnus::Window::GetWidth(), Cygnus::Window::GetHeight());
 
 	// DSV用のヒープでディスクリプタの数は1。DSVはShade内で触るものではないので、ShaderVisibleはfalse
-	Microsoft::WRL::ComPtr <ID3D12DescriptorHeap> dsvDescriptorHeap = CreateDescriptorHeap(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false);
+	Cygnus::DescriptorHeap dsvDescriptorHeap;
+	dsvDescriptorHeap.Create(device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1, false);
 
 	// DSVの設定
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
 	dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // Format。基本的にはResourceに合わせる
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D; // 2dTexture
 	// DSVHeapの先頭にDSVをつくる
-	device->CreateDepthStencilView(depthStencilResource.Get(), &dsvDesc, dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	device->CreateDepthStencilView(depthStencilResource.Get(), &dsvDesc, dsvDescriptorHeap.GetCPUHandle(0));
 
 	// DepthStencilStateの設定
 	D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
@@ -623,8 +602,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	scissorRect.top = 0;
 	scissorRect.bottom = Cygnus::Window::GetHeight();
 
+	// TextureManagerの初期化
+	Cygnus::TextureManager::Initialize(device.Get());
+
 	// ImGuiの初期化
-	Cygnus::ImguiWrapper::Initialize(device.Get(), swapChainDesc.BufferCount, rtvDesc.Format, srvDescriptorHeap.Get());
+	Cygnus::ImguiWrapper::Initialize(device.Get(), swapChainDesc.BufferCount, rtvDesc.Format, Cygnus::TextureManager::GetInstance().srvHeap.heap.Get());
 
 	// Transform変数を作る
 	Cygnus::Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
@@ -632,7 +614,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// カメラのインスタンスを生成
 	Cygnus::Camera camera({ 0.0f,0.0f,-5.0f },{0.0f,0.0f,0.0f},0.45f);
 
-	Cygnus::TextureManager::Load("Resources/uvChecker.png", device.Get(), srvDescriptorHeap.Get());
+	uint32_t uvCheckerGH = Cygnus::TextureManager::Load("Resources/uvChecker.png", device.Get());
+	uint32_t monsterBallGH = Cygnus::TextureManager::Load("Resources/monsterBall.png", device.Get());
 
 	while (!Cygnus::Window::ProcessMessage()) {
 
@@ -659,16 +642,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		commandList->ResourceBarrier(1, &barrier);
 
 		// 描画先のRTVとDSVを設定する
-		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		commandList->OMSetRenderTargets(1, &rtvHandles[backBufferIndex], false, &dsvHandle);
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvDescriptorHeap.GetCPUHandle(0);
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvDescriptorHeap.GetCPUHandle(backBufferIndex);
+		commandList->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
 		// 指定した色で画面全体をクリアする
 		float clearColor[] = { 0.1f,0.25f,0.5f,1.0f }; // 青っぽい色。RGBAの順
-		commandList->ClearRenderTargetView(rtvHandles[backBufferIndex], clearColor, 0, nullptr);
+		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 		// 指定した深度で画面全体をクリアする
 		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		// 描画用のDescriptorHeapの設定
-		ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap.Get()};
+		ID3D12DescriptorHeap* descriptorHeaps[] = { Cygnus::TextureManager::GetInstance().srvHeap.heap.Get() };
 		commandList->SetDescriptorHeaps(1, descriptorHeaps);
 
 		// ImGuiにここからフレームが始まる旨を告げる
@@ -734,8 +718,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// RootSignatureを設定。PSOに設定しているけど別途設定が必要
 		commandList->SetGraphicsRootSignature(rootSignature.Get());
 		commandList->SetPipelineState(graphicsPipelineState.Get()); // PSOを設定
-		// SRVのDescriptorTableの先頭を設定
-		Cygnus::TextureManager::SetDescriptorTable(2, commandList.Get());
 
 		///
 		///	3Dオブジェクトの描画コマンド
@@ -747,6 +729,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
 		// wvp用のCBufferの場所を設定
 		commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
+		// SRVのDescriptorTableの先頭を設定(Textureの設定)
+		Cygnus::TextureManager::SetDescriptorTable(2, commandList.Get(), monsterBallGH);
 		// 描画。6頂点で1つのインスタンス
 		commandList->DrawInstanced(6, 1, 0, 0);
 
@@ -756,6 +740,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite); // VBVを設定
 		// TransformationMatrixCBufferの場所を設定
 		commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+		// SRVのDescriptorTableの先頭を設定(Textureの設定)
+		Cygnus::TextureManager::SetDescriptorTable(2, commandList.Get(), uvCheckerGH);
 		// 描画
 		commandList->DrawInstanced(6, 1, 0, 0);
 
