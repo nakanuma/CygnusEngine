@@ -7,6 +7,7 @@
 #include "ImguiWrapper.h"
 #include "CygnusMath.h"
 #include "DescriptorHeap.h"
+#include "ModelManager.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <cassert>
@@ -14,11 +15,6 @@
 #include <dxcapi.h>
 #include <time.h>
 #include <mmsystem.h>
-
-struct VertexData {
-	Cygnus::Float4 position;
-	Cygnus::Float2 texcoord;
-};
 
 IDxcBlob* CompileShader(
 	// CompilerするShaderファイルへのパス
@@ -466,44 +462,53 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		IID_PPV_ARGS(&graphicsPipelineState));
 	assert(SUCCEEDED(hr));
 
+	// TextureManagerの初期化
+	Cygnus::TextureManager::Initialize(device.Get());
+
+	// ImGuiの初期化
+	Cygnus::ImguiWrapper::Initialize(device.Get(), swapChainDesc.BufferCount, rtvDesc.Format, Cygnus::TextureManager::GetInstance().srvHeap.heap.Get());
+
+	// ビューポート
+	D3D12_VIEWPORT viewport{};
+	// クライアント領域のサイズを一緒にして画面全体に表示
+	viewport.Width = static_cast<float>(Cygnus::Window::GetWidth());
+	viewport.Height = static_cast<float>(Cygnus::Window::GetHeight());
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+
+	// シザー矩形
+	D3D12_RECT scissorRect{};
+	// 基本的にビューポートと同じ矩形が構成されるようにする
+	scissorRect.left = 0;
+	scissorRect.right = Cygnus::Window::GetWidth();
+	scissorRect.top = 0;
+	scissorRect.bottom = Cygnus::Window::GetHeight();
+
 	///
 	///	ここから3Dオブジェクト
 	/// 
 
-	Microsoft::WRL::ComPtr <ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(VertexData) * 6);
+	// モデル読み込み
+	Cygnus::ModelData modelData = Cygnus::ModelManager::LoadObjFile("resources", "plane.obj", device.Get());
+
+	Microsoft::WRL::ComPtr <ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(Cygnus::VertexData) * modelData.vertices.size());
 
 	// 頂点バッファビューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
 	// リソースの先頭のアドレスから使う
 	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
-	// 使用するリソースのサイズは頂点3つ分のサイズ
-	vertexBufferView.SizeInBytes = sizeof(VertexData) * 6;
+	// 使用するリソースのサイズは頂点のサイズ
+	vertexBufferView.SizeInBytes = UINT(sizeof(Cygnus::VertexData) * modelData.vertices.size());
 	// 1頂点あたりのサイズ
-	vertexBufferView.StrideInBytes = sizeof(VertexData);
+	vertexBufferView.StrideInBytes = sizeof(Cygnus::VertexData);
 
 	// 頂点リソースにデータを書き込む
-	VertexData* vertexData = nullptr;
+	Cygnus::VertexData* vertexData = nullptr;
 	// 書き込むためのアドレスを取得
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-	// 左下
-	vertexData[0].position = { -0.5f,-0.5f,0.0f,1.0f };
-	vertexData[0].texcoord = { 0.0f,1.0f };
-	// 上
-	vertexData[1].position = { 0.0f,0.5f,0.0f,1.0f };
-	vertexData[1].texcoord = { 0.5f,0.0f };
-	// 右下
-	vertexData[2].position = { 0.5f,-0.5f,0.0f,1.0f };
-	vertexData[2].texcoord = { 1.0f,1.0f };
-
-	// 左下2
-	vertexData[3].position = { -0.5f,-0.5f,0.5f,1.0f };
-	vertexData[3].texcoord = { 0.0f,1.0f };
-	// 上2
-	vertexData[4].position = { 0.0f,0.0f,0.0f,1.0f };
-	vertexData[4].texcoord = { 0.5f,0.0f };
-	// 右下2
-	vertexData[5].position = { 0.5f,-0.5f,-0.5f,1.0f };
-	vertexData[5].texcoord = { 1.0f,1.0f };
+	std::memcpy(vertexData, modelData.vertices.data(), sizeof(Cygnus::VertexData)* modelData.vertices.size()); // 頂点データをリソースにコピー
 
 	// マテリアル用のリソースを作る
 	Microsoft::WRL::ComPtr <ID3D12Resource> materialResource = CreateBufferResource(device.Get(), sizeof(Cygnus::Float4));
@@ -533,40 +538,50 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	/// 
 	
 	// Sprite用の頂点リソースを作る
-	Microsoft::WRL::ComPtr <ID3D12Resource> vertexResourceSprite = CreateBufferResource(device.Get(), sizeof(VertexData) * 6);
+	Microsoft::WRL::ComPtr <ID3D12Resource> vertexResourceSprite = CreateBufferResource(device.Get(), sizeof(Cygnus::VertexData) * 4);
 
 	// 頂点バッファビューを作成する
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferViewSprite{};
 	// リソースの先頭のアドレスから使う
 	vertexBufferViewSprite.BufferLocation = vertexResourceSprite->GetGPUVirtualAddress();
-	// 使用するリソースのサイズは頂点6つ分のサイズ
-	vertexBufferViewSprite.SizeInBytes = sizeof(VertexData) * 6;
+	// 使用するリソースのサイズは頂点4つ分のサイズ
+	vertexBufferViewSprite.SizeInBytes = sizeof(Cygnus::VertexData) * 4;
 	// 1頂点あたりのサイズ
-	vertexBufferViewSprite.StrideInBytes = sizeof(VertexData);
+	vertexBufferViewSprite.StrideInBytes = sizeof(Cygnus::VertexData);
 
 	// 頂点データを設定
-	VertexData* vertexDataSprite = nullptr;
+	Cygnus::VertexData* vertexDataSprite = nullptr;
 	// 書き込むためのアドレスを取得
 	vertexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&vertexDataSprite));
 	// 左下
 	vertexDataSprite[0].position = { 0.0f, 360.0f, 0.0f, 1.0f };
 	vertexDataSprite[0].texcoord = { 0.0f, 1.0f };
-	// 上
+	// 左上
 	vertexDataSprite[1].position = { 0.0f, 0.0f, 0.0f, 1.0f };
 	vertexDataSprite[1].texcoord = { 0.0f, 0.0f };
 	// 右下
 	vertexDataSprite[2].position = { 640.0f, 360.0f, 0.0f, 1.0f };
 	vertexDataSprite[2].texcoord = { 1.0f, 1.0f };
+	// 右上
+	vertexDataSprite[3].position = { 640.0f, 0.0f, 0.0f, 1.0f };
+	vertexDataSprite[3].texcoord = { 1.0f, 0.0f };
 
-	// 左下2
-	vertexDataSprite[3].position = { 0.0f, 0.0f, 0.0f, 1.0f };
-	vertexDataSprite[3].texcoord = { 0.0f, 0.0f };
-	// 上2
-	vertexDataSprite[4].position = { 640.0f, 0.0f, 0.0f, 1.0f };
-	vertexDataSprite[4].texcoord = { 1.0f, 0.0f };
-	// 右下2
-	vertexDataSprite[5].position = { 640.0f, 360.0f, 0.0f, 1.0f };
-	vertexDataSprite[5].texcoord = { 1.0f, 1.0f };
+	// 頂点インデックスの作成
+	Microsoft::WRL::ComPtr <ID3D12Resource> indexResourceSprite = CreateBufferResource(device.Get(), sizeof(uint32_t) * 6);
+
+	D3D12_INDEX_BUFFER_VIEW indexBufferViewSprite{};
+	// リソースの先頭のアドレスから使う
+	indexBufferViewSprite.BufferLocation = indexResourceSprite->GetGPUVirtualAddress();
+	// 使用するリソースのサイズはインデックス6つ分のサイズ
+	indexBufferViewSprite.SizeInBytes = sizeof(uint32_t) * 6;
+	// インデックスはuint32_tとする
+	indexBufferViewSprite.Format = DXGI_FORMAT_R32_UINT;
+
+	// インデックスリソースにデータを書き込む
+	uint32_t* indexDataSprite = nullptr;
+	indexResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&indexDataSprite));
+	indexDataSprite[0] = 0; indexDataSprite[1] = 1; indexDataSprite[2] = 2;
+	indexDataSprite[3] = 1; indexDataSprite[4] = 3; indexDataSprite[5] = 2;
 
 	// Sprite用のTransformationMatrix用のリソースを作る。Matrix 1つ分のサイズを用意する
 	Microsoft::WRL::ComPtr <ID3D12Resource> transformationMatrixResourceSprite = CreateBufferResource(device.Get(), sizeof(Cygnus::Matrix));
@@ -583,30 +598,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	///
 	///	ここまでスプライト
 	/// 
-
-	// ビューポート
-	D3D12_VIEWPORT viewport{};
-	// クライアント領域のサイズを一緒にして画面全体に表示
-	viewport.Width = static_cast<float>(Cygnus::Window::GetWidth());
-	viewport.Height = static_cast<float>(Cygnus::Window::GetHeight());
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.MinDepth = 0.0f;
-	viewport.MaxDepth = 1.0f;
-
-	// シザー矩形
-	D3D12_RECT scissorRect{};
-	// 基本的にビューポートと同じ矩形が構成されるようにする
-	scissorRect.left = 0;
-	scissorRect.right = Cygnus::Window::GetWidth();
-	scissorRect.top = 0;
-	scissorRect.bottom = Cygnus::Window::GetHeight();
-
-	// TextureManagerの初期化
-	Cygnus::TextureManager::Initialize(device.Get());
-
-	// ImGuiの初期化
-	Cygnus::ImguiWrapper::Initialize(device.Get(), swapChainDesc.BufferCount, rtvDesc.Format, Cygnus::TextureManager::GetInstance().srvHeap.heap.Get());
 
 	// Transform変数を作る
 	Cygnus::Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
@@ -730,20 +721,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// wvp用のCBufferの場所を設定
 		commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
 		// SRVのDescriptorTableの先頭を設定(Textureの設定)
-		Cygnus::TextureManager::SetDescriptorTable(2, commandList.Get(), monsterBallGH);
-		// 描画。6頂点で1つのインスタンス
-		commandList->DrawInstanced(6, 1, 0, 0);
+		Cygnus::TextureManager::SetDescriptorTable(2, commandList.Get(), modelData.material.textureHandle);
+		// モデルデータから頂点を読み、インスタンスを生成
+		commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
 
 		///
 		///	スプライトの描画コマンド
 		///
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite); // VBVを設定
+		commandList->IASetIndexBuffer(&indexBufferViewSprite); // IBVを設定
 		// TransformationMatrixCBufferの場所を設定
 		commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 		// SRVのDescriptorTableの先頭を設定(Textureの設定)
 		Cygnus::TextureManager::SetDescriptorTable(2, commandList.Get(), uvCheckerGH);
-		// 描画
-		commandList->DrawInstanced(6, 1, 0, 0);
+		// 描画、6個のインデックスを使用して1つのインスタンスを描画
+		/*commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);*/
 
 		///
 		/// ゲームループここまで

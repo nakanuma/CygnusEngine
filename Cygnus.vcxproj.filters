@@ -52,6 +52,9 @@
     <Filter Include="DirectX">
       <UniqueIdentifier>{ae30031d-af4b-4c66-baed-4f8aa79c7b5a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Engine\Model">
+      <UniqueIdentifier>{2970c282-aba9-45bc-be5f-926f51dafaea}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -104,6 +107,9 @@
     </ClCompile>
     <ClCompile Include="DescriptorHeap.cpp">
       <Filter>DirectX</Filter>
+    </ClCompile>
+    <ClCompile Include="ModelManager.cpp">
+      <Filter>Engine\Model</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -169,6 +175,9 @@
     </ClInclude>
     <ClInclude Include="DescriptorHeap.h">
       <Filter>DirectX</Filter>
+    </ClInclude>
+    <ClInclude Include="ModelManager.h">
+      <Filter>Engine\Model</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
