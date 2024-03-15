@@ -59,11 +59,7 @@ ModelData Cygnus::ModelManager::LoadObjFile(const std::string& directoryPath, co
 				Float4 position = positions[elementIndices[0] - 1];
 				Float2 texcoord = texcoords[elementIndices[1] - 1];
 				Float3 normal = normals[elementIndices[2] - 1];
-				/*VertexData vertex = { position, texcoord, normal };*/
-				/*VertexData vertex = { position, texcoord };
-				modelData.vertices.push_back(vertex);*/
-				/*triangle[faceVertex] = { position, texcoord, normal};*/
-				triangle[faceVertex] = { position, texcoord };
+				triangle[faceVertex] = { position, texcoord, normal};
 			}
 			// 頂点を逆順で登録することで、周り順を逆にする
 			modelData.vertices.push_back(triangle[2]);

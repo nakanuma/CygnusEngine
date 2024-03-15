@@ -12,6 +12,7 @@ namespace Cygnus {
 	struct VertexData {
 		Cygnus::Float4 position;
 		Cygnus::Float2 texcoord;
+		Cygnus::Float3 normal;
 	};
 
 	struct MaterialData {

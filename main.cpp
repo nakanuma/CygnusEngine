@@ -16,6 +16,22 @@
 #include <time.h>
 #include <mmsystem.h>
 
+struct Material {
+	Cygnus::Float4 color;
+	int32_t enableLighting;
+};
+
+struct TransformationMatrix {
+	Cygnus::Matrix WVP;
+	Cygnus::Matrix World;
+};
+
+struct DirectionalLight {
+	Cygnus::Float4 color; // ライトの色
+	Cygnus::Float3 direction; // ライトの向き
+	float intensity; // 輝度
+};
+
 IDxcBlob* CompileShader(
 	// CompilerするShaderファイルへのパス
 	const std::wstring& filePath,
@@ -332,7 +348,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	descriptorRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // Offsetを自動計算
 
 	// RootParameter作成
-	D3D12_ROOT_PARAMETER rootParameters[3] = {};
+	D3D12_ROOT_PARAMETER rootParameters[4] = {};
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
 	rootParameters[0].Descriptor.ShaderRegister = 0; // レジスタ番号0とバインド
@@ -343,6 +359,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
 	rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRange; // Tableの中身の配列を指定
 	rootParameters[2].DescriptorTable.NumDescriptorRanges = _countof(descriptorRange); // Tableで利用する数
+	rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // CBVを使う
+	rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // PixelShaderで使う
+	rootParameters[3].Descriptor.ShaderRegister = 1; // レジスタ番号1を使う
 	descriptionRootSignature.pParameters = rootParameters; // ルートパラメータ配列へのポインタ
 	descriptionRootSignature.NumParameters = _countof(rootParameters); // 配列の長さ
 
@@ -375,7 +394,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(hr));
 
 	// InputLayout
-	D3D12_INPUT_ELEMENT_DESC inputElementDescs[2] = {};
+	D3D12_INPUT_ELEMENT_DESC inputElementDescs[3] = {};
 	inputElementDescs[0].SemanticName = "POSITION";
 	inputElementDescs[0].SemanticIndex = 0;
 	inputElementDescs[0].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -384,6 +403,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	inputElementDescs[1].SemanticIndex = 0;
 	inputElementDescs[1].Format = DXGI_FORMAT_R32G32_FLOAT;
 	inputElementDescs[1].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
+	inputElementDescs[2].SemanticName = "NORMAL";
+	inputElementDescs[2].SemanticIndex = 0;
+	inputElementDescs[2].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	inputElementDescs[2].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
 	inputLayoutDesc.pInputElementDescs = inputElementDescs;
 	inputLayoutDesc.NumElements = _countof(inputElementDescs);
@@ -491,7 +514,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	/// 
 
 	// モデル読み込み
-	Cygnus::ModelData modelData = Cygnus::ModelManager::LoadObjFile("resources", "plane.obj", device.Get());
+	Cygnus::ModelData modelData = Cygnus::ModelManager::LoadObjFile("resources", "sphere.obj", device.Get());
 
 	Microsoft::WRL::ComPtr <ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(Cygnus::VertexData) * modelData.vertices.size());
 
@@ -511,28 +534,49 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	std::memcpy(vertexData, modelData.vertices.data(), sizeof(Cygnus::VertexData)* modelData.vertices.size()); // 頂点データをリソースにコピー
 
 	// マテリアル用のリソースを作る
-	Microsoft::WRL::ComPtr <ID3D12Resource> materialResource = CreateBufferResource(device.Get(), sizeof(Cygnus::Float4));
+	Microsoft::WRL::ComPtr <ID3D12Resource> materialResource = CreateBufferResource(device.Get(), sizeof(Material));
 	// マテリアルにデータを書き込む
-	Cygnus::Float4* materialData = nullptr;
+	Material* materialData = nullptr;
 	// 書き込むためのアドレスを取得
 	materialResource->Map(0, nullptr, reinterpret_cast<void**>(&materialData));
 	// 輝度を白に設定
-	*materialData = Cygnus::Float4(1.0f, 1.0f, 1.0f, 1.0f);
+	materialData->color = Cygnus::Float4(1.0f, 1.0f, 1.0f, 1.0f);
+	// Lightingを有効にする
+	materialData->enableLighting = true;
 
 
 	// WVP用のリソースを作る
-	Microsoft::WRL::ComPtr <ID3D12Resource> wvpResource = CreateBufferResource(device.Get(), sizeof(Cygnus::Matrix));
+	Microsoft::WRL::ComPtr <ID3D12Resource> wvpResource = CreateBufferResource(device.Get(), sizeof(TransformationMatrix));
 	// データを書き込む
-	Cygnus::Matrix* wvpData = nullptr;
+	TransformationMatrix* wvpData = nullptr;
 	// 書き込むためのアドレスを取得
 	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
 	// 単位行列を書き込んでおく
-	*wvpData = Cygnus::Matrix::Identity();
+	wvpData->WVP = Cygnus::Matrix::Identity();
 
 	///
 	///	ここまで3Dオブジェクト
 	/// 
 	
+	///
+	///	ここから平行光源
+	/// 
+	
+	// 平行光源のResourceを作成
+	Microsoft::WRL::ComPtr <ID3D12Resource> directionalLightResource = CreateBufferResource(device.Get(), sizeof(DirectionalLight));
+	// データを書き込む
+	DirectionalLight* directionalLightData = nullptr;
+	// 書き込むためのアドレスを取得
+	directionalLightResource->Map(0, nullptr, reinterpret_cast<void**>(&directionalLightData));
+	// デフォルト値を書き込む
+	directionalLightData->color = { 1.0f,1.0f,1.0f,1.0f };
+	directionalLightData->direction = { 0.0f, -1.0f, 0.0f };
+	directionalLightData->intensity = 1.0f;
+
+	///
+	///	ここまで平行光源
+	/// 
+
 	///
 	///	ここからスプライト
 	/// 
@@ -584,16 +628,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	indexDataSprite[3] = 1; indexDataSprite[4] = 3; indexDataSprite[5] = 2;
 
 	// Sprite用のTransformationMatrix用のリソースを作る。Matrix 1つ分のサイズを用意する
-	Microsoft::WRL::ComPtr <ID3D12Resource> transformationMatrixResourceSprite = CreateBufferResource(device.Get(), sizeof(Cygnus::Matrix));
+	Microsoft::WRL::ComPtr <ID3D12Resource> transformationMatrixResourceSprite = CreateBufferResource(device.Get(), sizeof(TransformationMatrix));
 	// データを書き込む
-	Cygnus::Matrix* transformationMatrixDataSprite = nullptr;
+	TransformationMatrix* transformationMatrixDataSprite = nullptr;
 	// 書き込むためのアドレスを取得
 	transformationMatrixResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&transformationMatrixDataSprite));
 	// 単位行列を書き込んでおく
-	*transformationMatrixDataSprite = Cygnus::Matrix::Identity();
+	transformationMatrixDataSprite->WVP = Cygnus::Matrix::Identity();
 
 	// CPUで動かす用のTransformを作る
 	Cygnus::Transform transformSprite{ {1.0f, 1.0f, 1.0f}, {0.0f,0.0f,0.0f}, {0.0f, 0.0f, 0.0f} };
+
+	// sprite用のマテリアル用のリソースを作る
+	Microsoft::WRL::ComPtr <ID3D12Resource> materialResourceSprite = CreateBufferResource(device.Get(), sizeof(Material));
+	// マテリアルにデータを書き込む
+	Material* materialDataSprite = nullptr;
+	// 書き込むためのアドレスを取得
+	materialResourceSprite->Map(0, nullptr, reinterpret_cast<void**>(&materialDataSprite));
+	// 輝度を白に設定
+	materialDataSprite->color = Cygnus::Float4(1.0f, 1.0f, 1.0f, 1.0f);
+	// Lightingを無効にする
+	materialDataSprite->enableLighting = false;
 
 	///
 	///	ここまでスプライト
@@ -664,18 +719,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		if (ImGui::Begin("Triangle")) {
 			// 色を決める
-			ImGui::ColorEdit4("TriangleColor", &materialData->x);
+			ImGui::ColorEdit4("TriangleColor", &materialData->color.x);
 			// ボタンが押されたら回転
 			if (ImGui::Button("rotate")) {
 				isRotate = !isRotate;
 			}
 			ImGui::Checkbox("rotateCheck",&isRotate);
+			ImGui::DragFloat3("LightDirection", &directionalLightData->direction.x);
 		}
 		ImGui::End();
 
 		if (isRotate) {
 			transform.rotate.y += 0.03f;
 		}
+
+		transform.scale = { 0.5f,0.5f,0.5f };
 
 		if (ImGui::Begin("Sprite")) {
 			// 移動させる
@@ -687,7 +745,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Cygnus::Matrix viewMatrix = camera.MakeViewMatrix();
 		Cygnus::Matrix projectionMatrix = camera.MakePerspectiveFovMatrix();
 		Cygnus::Matrix worldViewProjectionMatrix = worldMatrix * viewMatrix * projectionMatrix;
-		*wvpData = worldViewProjectionMatrix;
+		wvpData->WVP = worldViewProjectionMatrix;
+		wvpData->World = worldMatrix;
 
 		// Sprite用のWorldViewProjectionMatrixを作る
 		Cygnus::Matrix worldMatrixSprite = transformSprite.MakeAffineMatrix();
@@ -695,7 +754,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Cygnus::Matrix projectionMatrixSprite = Cygnus::Matrix::Orthographic(static_cast<float>(Cygnus::Window::GetWidth()),
 			static_cast<float>(Cygnus::Window::GetHeight()), 0.0f, 100.0f);
 		Cygnus::Matrix worldViewProjectionMatrixSprite = worldMatrixSprite * (viewMatrixSprite * projectionMatrixSprite);
-		*transformationMatrixDataSprite = worldViewProjectionMatrixSprite;
+		transformationMatrixDataSprite->WVP = worldViewProjectionMatrixSprite;
+		transformationMatrixDataSprite->World = worldMatrixSprite;
 
 		///
 		///	描画処理
@@ -709,6 +769,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// RootSignatureを設定。PSOに設定しているけど別途設定が必要
 		commandList->SetGraphicsRootSignature(rootSignature.Get());
 		commandList->SetPipelineState(graphicsPipelineState.Get()); // PSOを設定
+		// 平行光源の情報の定数バッファのセット
+		commandList->SetGraphicsRootConstantBufferView(3, directionalLightResource->GetGPUVirtualAddress());
 
 		///
 		///	3Dオブジェクトの描画コマンド
@@ -730,6 +792,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite); // VBVを設定
 		commandList->IASetIndexBuffer(&indexBufferViewSprite); // IBVを設定
+		commandList->SetGraphicsRootConstantBufferView(0, materialResourceSprite->GetGPUVirtualAddress());
 		// TransformationMatrixCBufferの場所を設定
 		commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 		// SRVのDescriptorTableの先頭を設定(Textureの設定)
